@@ -1,0 +1,36 @@
+FROM flink:1.17.1
+
+# Install Python and required dependencies
+RUN apt-get update -y && \
+    apt-get install -y python3 python3-pip python3-dev python3-venv && \
+    ln -s /usr/bin/python3 /usr/bin/python
+
+# Create a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install PyFlink and its dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir apache-flink==1.17.1 kafka-python
+
+# Set the Python path for Flink
+ENV PYTHON_PATH /opt/venv/bin/python
+
+# Set PYTHONPATH to include Flink Python API
+ENV PYTHONPATH $PYTHONPATH:/opt/flink/opt/python
+
+# Download Kafka client JAR
+ENV KAFKA_CLIENT_VERSION 2.8.1
+RUN wget https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/${KAFKA_CLIENT_VERSION}/kafka-clients-${KAFKA_CLIENT_VERSION}.jar -P /opt/flink/lib/
+
+# Set up working directory
+WORKDIR /app
+
+# Copy any necessary files
+COPY . .
+
+# Set Flink log level to INFO
+RUN echo "log4j.rootLogger=INFO, console" >> /opt/flink/conf/log4j.properties
+
+# Command to keep the container running and tail the logs
+CMD ["sh", "-c", "tail -f /opt/flink/log/* & tail -f /dev/null"]
