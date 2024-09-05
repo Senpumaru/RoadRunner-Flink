@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 class GeoDataProcessor(MapFunction):
     def map(self, event):
         try:
-            logger.info(f"Processing event: {event}")
             data = json.loads(event)
             lat, lon = data['latitude'], data['longitude']
             distance = (lat ** 2 + lon ** 2) ** 0.5
@@ -23,7 +22,6 @@ class GeoDataProcessor(MapFunction):
                 'original': data,
                 'distance_from_origin': distance
             })
-            logger.info(f"Processed result: {result}")
             return result
         except Exception as e:
             logger.error(f"Error processing event: {str(e)}", exc_info=True)
@@ -43,19 +41,13 @@ class DistanceFilter(FilterFunction):
 
 def geo_data_job():
     try:
-        logger.info("Starting geo_data_job")
         env = StreamExecutionEnvironment.get_execution_environment()
 
-        # Set parallelism to 2
-        env.set_parallelism(2)
-
-        logger.info(f"Python executable: {sys.executable}")
-        logger.info(f"Python version: {sys.version}")
-        logger.info(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
+        # Set parallelism to 1 to reduce resource usage
+        env.set_parallelism(1)
 
         # Add Kafka connector JAR
         env.add_jars("file:///opt/flink/lib/flink-connector-kafka-1.17.1.jar")
-        logger.info("Added Kafka connector JAR")
 
         # Kafka consumer configuration
         kafka_consumer = FlinkKafkaConsumer(
@@ -63,7 +55,6 @@ def geo_data_job():
             deserialization_schema=SimpleStringSchema(),
             properties={'bootstrap.servers': 'kafka:9092', 'group.id': 'flink-geo-processor'}
         )
-        logger.info("Configured Kafka consumer")
 
         # Kafka producer configuration for the output topic
         kafka_producer = FlinkKafkaProducer(
@@ -71,36 +62,22 @@ def geo_data_job():
             serialization_schema=SimpleStringSchema(),
             producer_config={'bootstrap.servers': 'kafka:9092'}
         )
-        logger.info("Configured Kafka producer for processed_geo_data topic")
-
-        # Kafka producer for filtered data
-        filtered_producer = FlinkKafkaProducer(
-            topic='filtered_geo_data',
-            serialization_schema=SimpleStringSchema(),
-            producer_config={'bootstrap.servers': 'kafka:9092'}
-        )
-        logger.info("Configured Kafka producer for filtered_geo_data topic")
 
         # Read from Kafka
         stream = env.add_source(kafka_consumer)
-        logger.info("Added Kafka source to the stream")
 
         # Process the stream
         processed_stream = stream.map(GeoDataProcessor(), output_type=Types.STRING())
-        logger.info("Added GeoDataProcessor to the stream")
 
         # Write processed data to Kafka
         processed_stream.add_sink(kafka_producer)
-        logger.info("Added Kafka sink for processed data")
 
-        # Filter and write to another topic
-        filtered_stream = processed_stream.filter(DistanceFilter(100))
-        filtered_stream.add_sink(filtered_producer)
-        logger.info("Added filter and sink for filtered data")
+        # Filter and write to another topic (commented out for now)
+        # filtered_stream = processed_stream.filter(DistanceFilter(100))
+        # filtered_stream.add_sink(filtered_producer)
 
         # Execute the Flink job
-        logger.info("Executing Flink job")
-        env.execute("Geo Data Processor Job")
+        env.execute("Geo Data Processor Job V3 - Test")
     except Exception as e:
         logger.error(f"Error in geo_data_job: {str(e)}", exc_info=True)
 

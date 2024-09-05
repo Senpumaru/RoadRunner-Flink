@@ -1,0 +1,1 @@
+jobmanager.memory.process.size: 1600mtaskmanager.memory.process.size: 1728mtaskmanager.numberOfTaskSlots: 2parallelism.default: 1
