@@ -1,0 +1,88 @@
+services:
+  jobmanager:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
+    ports:
+      - "8081:8081"
+      # - "6123:6123"
+      # - "6124:6124"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+      #   jobmanager.rpc.port: 6123
+      #   jobmanager.bind-host: 0.0.0.0
+      #   taskmanager.bind-host: 0.0.0.0
+      #   rest.bind-address: 0.0.0.0
+      #   rest.address: 0.0.0.0
+      #   state.backend: filesystem
+      #   state.checkpoints.dir: file:///flink-checkpoints
+      #   env.java.opts: -Djava.net.preferIPv4Stack=true
+      #   akka.ask.timeout: 60 s
+      #   akka.client.timeout: 60 s
+      #   akka.framesize: 104857600b
+      #   akka.fork-join-executor.parallelism-factor: 1.0
+      #   akka.tcp.timeout: 60 s
+      # - PYTHON_PATH=/opt/venv/bin/python
+      # - PYTHONPATH=/opt/flink/opt/python:/app
+    volumes:
+      - ./flink-checkpoints:/flink-checkpoints
+      - ./:/app  # Mount your application code
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  taskmanager:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    scale: 1
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        # taskmanager.numberOfTaskSlots: 4
+        # # jobmanager.rpc.port: 6123
+      #   taskmanager.bind-host: 0.0.0.0
+      #   state.backend: filesystem
+      #   state.checkpoints.dir: file:///flink-checkpoints
+      #   env.java.opts: -Djava.net.preferIPv4Stack=true
+      #   akka.ask.timeout: 60 s
+      #   akka.client.timeout: 60 s
+      #   akka.framesize: 104857600b
+      #   akka.fork-join-executor.parallelism-factor: 1.0
+      #   akka.tcp.timeout: 60 s
+      # - PYTHON_PATH=/opt/venv/bin/python
+      # - PYTHONPATH=/opt/flink/opt/python:/app
+    volumes:
+      - ./flink-checkpoints:/flink-checkpoints
+      - ./:/app  # Mount your application code
+
+  dev-environment:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app
+    ports:
+      - "8888:8888"  # For Jupyter Notebook if needed
+    depends_on:
+      - jobmanager
+      - taskmanager
+    environment:
+      - FLINK_JOB_MANAGER_HOST=jobmanager
+      - FLINK_JOB_MANAGER_PORT=6123
+      - PYTHONPATH=/app:/opt/flink/opt/python
+      - PYTHON_PATH=/opt/venv/bin/python
+
+networks:
+  default:
+    name: roadrunner-network
+    external: true

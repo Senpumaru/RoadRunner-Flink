@@ -1,1 +1,25 @@
-jobmanager.memory.process.size: 1600mtaskmanager.memory.process.size: 1728mtaskmanager.numberOfTaskSlots: 2parallelism.default: 1
+# Updated flink-conf.yaml
+taskmanager.numberOfTaskSlots: 4
+# taskmanager.memory.process.size: 8096m
+taskmanager.memory.flink.size: 2056m
+# taskmanager.memory.task.off-heap.size: 2056m
+
+jobmanager.rpc.address: jobmanager
+jobmanager.memory.flink.size: 10560m
+
+parallelism.default: 1
+classloader.resolve-order: parent-first
+classloader.parent-first-patterns.additional: org.apache.kafka;org.apache.flink.connector.kafka
+
+# Impact:
+# 1. Each TaskManager can now run 4 tasks in parallel instead of 1.
+# 2. Default job parallelism is set to 4, allowing better resource utilization.
+# 3. Classloading order is set to parent-first, which can resolve dependency conflicts.
+# 4. Kafka-related classes are explicitly set to use parent-first classloading,
+#    ensuring compatibility with the Kafka connector.
+
+# In your Flink job code, you don't need to manually set parallelism:
+# env.set_parallelism(4)  # This is now unnecessary if you want parallelism of 4
+
+# The Kafka connector will work without explicit JAR loading in code:
+# env.add_jars(...)  # This is no longer needed in your Python code

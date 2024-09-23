@@ -1,0 +1,68 @@
+# Use Ubuntu 22.04 (Jammy) as the base image
+FROM ubuntu:22.04
+
+# Avoid prompts from apt
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Java, Python 3.10, and other necessary tools
+RUN apt-get update && apt-get install -y \
+    openjdk-11-jdk \
+    python3.10 \
+    python3.10-dev \
+    python3.10-venv \
+    python3-pip \
+    maven \
+    git \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up Python virtual environment
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3.10 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Upgrade pip and install Flink
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir apache-flink==1.17.1
+
+# Install Flink
+ENV FLINK_VERSION=1.17.1
+ENV FLINK_HOME=/opt/flink
+RUN wget -qO- https://archive.apache.org/dist/flink/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_2.12.tgz | tar -xzf - -C /opt/ && \
+    ln -s /opt/flink-${FLINK_VERSION} ${FLINK_HOME}
+
+# Download Kafka connector and client JARs
+RUN wget https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/1.17.1/flink-connector-kafka-1.17.1.jar -P ${FLINK_HOME}/lib/ && \
+    wget https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/2.8.1/kafka-clients-2.8.1.jar -P ${FLINK_HOME}/lib/
+
+# Add Flink to PATH
+ENV PATH=$PATH:${FLINK_HOME}/bin
+
+# Ensure pyflink-udf-runner.sh is executable
+RUN chmod +x $VIRTUAL_ENV/lib/python3.10/site-packages/pyflink/bin/pyflink-udf-runner.sh
+
+# Set up working directory
+WORKDIR /app
+
+# Copy any necessary files
+COPY . .
+
+# Set environment variables
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+ENV PATH $PATH:$JAVA_HOME/bin
+ENV PYTHONPATH "${PYTHONPATH}:/app"
+ENV PYFLINK_CLIENT_EXECUTABLE $VIRTUAL_ENV/bin/python
+
+# Set Flink configuration environment variables
+ENV FLINK_JOB_MANAGER_HOST jobmanager
+ENV FLINK_JOB_MANAGER_PORT 6123
+
+# Update Flink configuration
+RUN echo "jobmanager.rpc.address: ${FLINK_JOB_MANAGER_HOST}" >> ${FLINK_HOME}/conf/flink-conf.yaml && \
+    echo "rest.address: ${FLINK_JOB_MANAGER_HOST}" >> ${FLINK_HOME}/conf/flink-conf.yaml && \
+    echo "pipeline.jars: $(ls ${FLINK_HOME}/lib/flink-connector-kafka*.jar):$(ls ${FLINK_HOME}/lib/kafka-clients*.jar)" >> ${FLINK_HOME}/conf/flink-conf.yaml && \
+    echo "env.python.executable: $VIRTUAL_ENV/bin/python" >> ${FLINK_HOME}/conf/flink-conf.yaml
+
+# Command to keep the container running
+CMD ["tail", "-f", "/dev/null"]
